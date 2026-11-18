@@ -153,6 +153,7 @@ h1{font-family:"Barlow Condensed";font-weight:800;font-size:34px;line-height:.95
 </style>
 </head>
 <body>
+<div id="safeProbe" style="position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)"></div>
 <div class="stage" id="stage">
   <header class="top">
     <div><div class="kicker">SÜPER LİG · 4 BÜYÜKLER</div><h1>ŞAMPİYONLUK YARIŞI</h1></div>
@@ -229,14 +230,15 @@ h1{font-family:"Barlow Condensed";font-weight:800;font-size:34px;line-height:.95
 /* ===== EKRANA SIĞDIR ===== */
 function fit(){
   const st=document.getElementById('stage');
-  const cs=getComputedStyle(document.documentElement);
-  const t=parseFloat(cs.getPropertyValue('--sat'))||0, b=parseFloat(cs.getPropertyValue('--sab'))||0;
+  const pr=document.getElementById('safeProbe'), cs=getComputedStyle(pr);
+  const t=Math.max(parseFloat(cs.paddingTop)||0, (navigator.standalone||matchMedia('(display-mode: standalone)').matches)?47:0);
+  const b=parseFloat(cs.paddingBottom)||0;
   const h=window.innerHeight-t-b;
   const sc=Math.min(window.innerWidth/420, h/880);
   st.style.transform='translateX(-50%) scale('+sc+')';
   st.style.top=(t+Math.max(0,(h-880*sc)/2))+'px';
 }
-window.addEventListener('resize',fit); fit();
+window.addEventListener('resize',fit); window.addEventListener('orientationchange',()=>setTimeout(fit,300)); window.addEventListener('load',fit); fit(); setTimeout(fit,500);
 /* ===== AYARLAR ===== */
 let DUR = 30*60;            // tur süresi (sn) — ayarlardan değişir
 const finalLen = () => Math.min(5*60, DUR/5); // son bölüm: sayaç kırmızıya döner
