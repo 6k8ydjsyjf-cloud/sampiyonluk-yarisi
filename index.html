@@ -3,10 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Şampiyonluk">
+<meta name="theme-color" content="#04060c">
 <title>Şampiyonluk Yarışı</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+html{--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom)}
 html,body{height:100%;background:#04060c;color:#fff;font-family:Inter,system-ui,sans-serif;overflow:hidden;-webkit-tap-highlight-color:transparent}
 .stage{position:absolute;left:50%;top:0;width:420px;height:880px;transform-origin:top center;
   padding:16px 14px 14px;
@@ -190,10 +196,11 @@ h1{font-family:"Barlow Condensed";font-weight:800;font-size:34px;line-height:.95
     <div class="lbl">TIKTOK BAĞLANTISI</div>
     <div class="conn">
       <input id="cUser" placeholder="TikTok kullanıcı adı" autocapitalize="off" autocorrect="off">
-      <input id="cKey" placeholder="EulerStream API anahtarı (isteğe bağlı)" autocapitalize="off" autocorrect="off">
+      <input id="cKey" type="password" placeholder="EulerStream API anahtarı" autocapitalize="off" autocorrect="off" autocomplete="off">
       <div class="pr"><button class="b" id="cOn">Bağlan</button><button class="b" id="cOff">Bağlantıyı kes</button></div>
       <div class="cs"><i class="dot" id="cDot"></i><span id="connTxt">Bağlı değil</span></div>
-      <div class="dbg" id="dbg">Gelen veriler burada görünecek.</div>
+      <button class="b" id="dbgBtn" style="width:100%;margin-bottom:8px">Gelen verileri göster</button>
+      <div class="dbg" id="dbg" style="display:none">Gelen veriler burada görünecek.</div>
     </div>
     <div class="lbl">TEST BUTONLARI</div>
     <div class="pg" id="pgrid"></div>
@@ -214,7 +221,7 @@ h1{font-family:"Barlow Condensed";font-weight:800;font-size:34px;line-height:.95
       <button class="b" id="endNow">Turu bitir</button>
       <button class="b" id="resetS">Sezonu sıfırla</button>
     </div>
-    <div class="note">Tur süresi değişikliği hemen uygulanır ve kaydedilir. Bağlantı durumu HAFTA yazısının yanındaki küçük noktada görünür: yeşil = bağlı. Test butonları sahte izleyici verisiyle çalışır. Yayında bu paneli kapalı tut.</div>
+    <div class="note">Tur süresi değişikliği hemen uygulanır ve kaydedilir. Bağlantı durumu HAFTA yazısının yanındaki küçük noktada görünür: yeşil = bağlı. Uygulamadan çıkıp dönünce kendiliğinden yeniden bağlanır. Test butonları sahte izleyici verisiyle çalışır. Yayında bu paneli kapalı tut.</div>
   </div>
 </div>
 
@@ -222,9 +229,12 @@ h1{font-family:"Barlow Condensed";font-weight:800;font-size:34px;line-height:.95
 /* ===== EKRANA SIĞDIR ===== */
 function fit(){
   const st=document.getElementById('stage');
-  const sc=Math.min(window.innerWidth/420, window.innerHeight/880);
+  const cs=getComputedStyle(document.documentElement);
+  const t=parseFloat(cs.getPropertyValue('--sat'))||0, b=parseFloat(cs.getPropertyValue('--sab'))||0;
+  const h=window.innerHeight-t-b;
+  const sc=Math.min(window.innerWidth/420, h/880);
   st.style.transform='translateX(-50%) scale('+sc+')';
-  st.style.top=Math.max(0,(window.innerHeight-880*sc)/2)+'px';
+  st.style.top=(t+Math.max(0,(h-880*sc)/2))+'px';
 }
 window.addEventListener('resize',fit); fit();
 /* ===== AYARLAR ===== */
@@ -452,7 +462,7 @@ async function buildUrl(){
     return 'wss://ws.eulerstream.com?uniqueId=' + encodeURIComponent(CONN.user) + (CONN.key ? '&apiKey=' + encodeURIComponent(CONN.key) : '');
   }
 }
-function retry(){ clearTimeout(CONN.timer); CONN.timer = setTimeout(()=>{ if(CONN.want) connect(); }, 10000); }
+function retry(ms){ clearTimeout(CONN.timer); CONN.timer = setTimeout(()=>{ if(CONN.want) connect(); }, ms || 10000); }
 async function connect(){
   CONN.want = true; clearTimeout(CONN.timer);
   if(CONN.ws){ const w = CONN.ws; CONN.ws = null; try{ w.close(); }catch(e){} }
@@ -464,6 +474,7 @@ async function connect(){
   CONN.ws = ws; ws.binaryType = 'arraybuffer';
   ws.onopen = () => { if(CONN.ws === ws){ setStatus('ok', 'Bağlandı: @' + CONN.user); dbg('bağlandı'); } };
   ws.onmessage = e => {
+    lastMsg = Date.now();
     if(typeof e.data !== 'string'){ dbg('ikili veri geldi (' + (e.data.byteLength||e.data.size||0) + ' bayt)'); return; }
     let m; try{ m = JSON.parse(e.data); }catch(x){ dbg('okunamayan veri: ' + e.data.slice(0,80)); return; }
     try{ handle(m); }catch(x){ dbg('işleme hatası: ' + x.message); }
@@ -477,7 +488,7 @@ async function connect(){
               : 'Bağlantı koptu (' + e.code + '), tekrar deneniyor';
     setStatus(e.code === 4404 ? 'wait' : 'err', msg);
     dbg('kapandı: ' + e.code + ' ' + (e.reason||''));
-    if(CONN.want) retry();
+    if(CONN.want) retry(e.code === 4404 ? 45000 : 8000);
   };
 }
 function disconnect(){
@@ -532,6 +543,21 @@ function onGift(d){
 }
 $('cOn').onclick = () => { CONN.user = $('cUser').value.trim().replace(/^@/,'') || 'golyarisi'; CONN.key = $('cKey').value.trim(); $('cUser').value = CONN.user; saveConn(); connect(); };
 $('cOff').onclick = disconnect;
+$('dbgBtn').onclick = () => { const d=$('dbg'), on=d.style.display==='none'; d.style.display = on ? 'block' : 'none'; $('dbgBtn').textContent = on ? 'Gelen verileri gizle' : 'Gelen verileri göster'; };
+// Uygulamaya geri dönünce bağlantıyı kendiliğinden yenile
+let hiddenAt = 0;
+function wake(){
+  if(!CONN.want) return;
+  const away = hiddenAt ? (Date.now() - hiddenAt) : 0; hiddenAt = 0;
+  const open = CONN.ws && CONN.ws.readyState === 1;
+  if(!open || away > 3000){ dbg('geri dönüldü, yeniden bağlanılıyor'); connect(); }
+}
+document.addEventListener('visibilitychange', () => { if(document.hidden) hiddenAt = Date.now(); else wake(); });
+window.addEventListener('pageshow', e => { if(e.persisted) wake(); });
+window.addEventListener('online', wake);
+// Bağlıyken 90 sn hiç veri gelmezse bağlantıyı tazele
+let lastMsg = Date.now();
+setInterval(() => { if(CONN.want && CONN.ws && CONN.ws.readyState === 1 && Date.now() - lastMsg > 90000){ dbg('veri gelmiyor, bağlantı tazeleniyor'); lastMsg = Date.now(); connect(); } }, 15000);
 if(CONN.want) connect(); else setStatus('off', 'Bağlı değil');
 
 /* ===== TEST PANELİ ===== */
