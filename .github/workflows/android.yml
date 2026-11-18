@@ -11,6 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Proje zip'ini aç
+        run: |
+          Z=$(ls *.zip 2>/dev/null | sort -V | tail -1 || true)
+          if [ -n "$Z" ]; then
+            echo "Açılan zip: $Z"
+            rm -rf _z && mkdir _z && unzip -oq "$Z" -d _z
+            if [ "$(ls -A _z | wc -l)" -eq 1 ] && [ -d "_z/$(ls -A _z)" ]; then S="_z/$(ls -A _z)"; else S=_z; fi
+            rm -rf "$S/.github"
+            cp -rf "$S"/. .
+            rm -rf _z
+          else
+            echo "Zip yok; repodaki dosyalar kullanılıyor."
+          fi
+          test -f package.json || { echo "HATA: package.json bulunamadı. Proje zip'ini repoya yükle."; exit 1; }
+          ls
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -47,7 +63,6 @@ jobs:
           if ! grep -q "com.android.vending.BILLING" "$MANIFEST"; then
             sed -i 's#</manifest>#    <uses-permission android:name="com.android.vending.BILLING" />\n</manifest>#' "$MANIFEST"
           fi
-          # Android 11+: sesli okuma (TTS) motorunu bulabilmek için
           if ! grep -q "TTS_SERVICE" "$MANIFEST"; then
             sed -i 's#</manifest>#    <queries>\n        <intent>\n            <action android:name="android.intent.action.TTS_SERVICE" />\n        </intent>\n    </queries>\n</manifest>#' "$MANIFEST"
           fi
